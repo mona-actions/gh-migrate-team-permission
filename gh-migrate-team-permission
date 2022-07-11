@@ -614,7 +614,7 @@ GetTeamRepoPermissions() {
   TEAMS=$(curl -s -X GET \
   -H "Accept: application/vnd.github.v3+json" \
   -H "authorization: bearer $GH_TOKEN_SOURCE" \
-  $SOURCE_API_URL/orgs/$SOURCE_ORG/teams | jq -r '.[].slug' 2>&1)
+  $SOURCE_API_URL/orgs/$SOURCE_ORG/teams | jq -r '.[].name' 2>&1)
 
   TOTAL_SIZE_REPO_PERMISSIONS=0
   NUM_TEAMS=0
