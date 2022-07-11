@@ -415,7 +415,6 @@ RecommendMigration() {
   fi
 }
 
-
 #####################################################################
 ##### Function ProceedMigration ########################################
 ProceedMigration() {
@@ -470,7 +469,11 @@ ProceedMigration() {
 
   while read -r line;
     do
-    
+
+    if [[ "$API_REMAINING_DEST" -eq "$API_TOTAL_DEST" ]]; then
+      Go2Sleep
+    fi;
+
     if [ "$COUNTER" -gt 0 ]; then
       read -a result_array <<< "$line"
 
@@ -489,9 +492,6 @@ ProceedMigration() {
 
     API_REMAINING_DEST=$((API_REMAINING_DEST - 1))
 
-    if [[ "$API_REMAINING_DEST" -eq 0 ]]; then
-      Go2Sleep
-    fi;
    done < "${INPUT_FILE_NAME}"
 }
 
@@ -797,7 +797,7 @@ SOURCE_ORG=${SOURCE_ORG:-}
 DEST_ORG=${DEST_ORG:-}
 ANALYZE_CONFLICTS=1
 OUTPUT_FILE_NAME=
-SLEEP='300'
+SLEEP='3600'
 
 ##########
 # HEADER #
