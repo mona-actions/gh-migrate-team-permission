@@ -470,7 +470,7 @@ ProceedMigration() {
   while read -r line;
     do
 
-    if [[ "$API_REMAINING_DEST" -eq "$API_TOTAL_DEST" ]]; then
+    if [[ "$API_REMAINING_DEST" -eq 0 ]]; then
       Go2Sleep
     fi;
 
