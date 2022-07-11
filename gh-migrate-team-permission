@@ -460,7 +460,6 @@ ProceedMigration() {
 
       read -r CONFIRM_INPUT_FILE
 
-
     done
   fi
 
@@ -474,9 +473,16 @@ ProceedMigration() {
     
     if [ "$COUNTER" -gt 0 ]; then
       read -a result_array <<< "$line"
-      echo "First: ${result_array[0]}"
-      echo "Second: ${result_array[1]}"
-      echo "Third: ${result_array[2]}"
+
+      ORG_MIGRATION="${result_array[0]}"
+      REPO_MIGRATION="${result_array[1]}"
+      PERMISSION_MIGRATION="${result_array[2]}"
+
+      curl -X PUT \
+      -H "Accept: application/vnd.github.v3+json" \
+      -H "Authorization: token $GH_TOKEN_DEST" \
+      $DEST_API_URL/orgs/$DEST_ORG/teams/$TEAM/repos/$DEST_ORG/$NAME_REPO \
+      -d "{\"permission\":\"$PERMISSION\"}"
     fi;
     COUNTER=$((COUNTER + 1))
 
@@ -635,7 +641,7 @@ GetTeamRepoPermissions() {
           TEMP=$(echo $PERMISSIONS4REPO | jq ".[$j] | .permissions")
           PERMISSION=$(calculate_permission "$TEMP")
 
-          echo "${DEST_ORG},${NAME_REPO},${PERMISSION}" >> $OUTPUT_FILE_NAME
+          echo "${DEST_ORG},${TEAM},${NAME_REPO},${PERMISSION}" >> $OUTPUT_FILE_NAME
 
       done
   done <<< $TEAMS
@@ -675,8 +681,8 @@ GenerateFiles() {
   echo ""
   echo "Creating file header..."
 
-  # File format headers: ORG_NAME,REPO_NAME,IS_EMPTY,PUSHED_AT,UPDATED_AT,IS_FORK,REPO_SIZE,RECORD_CT,COLLABORATOR_CT,PROTECTED_BRANCH_CT,PR_REVIEW_CT,MILESTONE_CT,ISSUE_CT,PR_CT,PR_REVIEW_COMMENT_CT,COMMIT_COMMENT_CT,ISSUE_COMMENT_CT,ISSUE_EVENT_CT,RELEASE_CT,PROJECT_CT,GHE_URL/ORG_NAME/REPO_NAME,MIGRATION_ISSUE
-  echo "Org,Repo,Permission" >> "${OUTPUT_FILE_NAME}" 2>&1
+  # File format headers: 
+  echo "Org,Team,Repo,Permission" >> "${OUTPUT_FILE_NAME}" 2>&1
 
   #######################
   # Load the error code #
