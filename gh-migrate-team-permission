@@ -277,7 +277,7 @@ GetPersonalAccessTokenSource() {
      echo ""
      echo "------------------------------------"
      echo "Please create a GitHub Personal Access token used to gather"
-     echo "information from your source organization, with a scope of 'repo',"
+     echo "information from your source organization, with a scope of all 'repo' and 'admin:org' permission"
      echo "followed by [ENTER]:"
      echo "(note: your input will NOT be displayed)"
      ########################
@@ -312,7 +312,7 @@ GetPersonalAccessTokenDestination() {
      echo ""
      echo "------------------------------------"
      echo "Please create a GitHub Personal Access token used to gather"
-     echo "information from your destination organization, with a scope of 'repo',"
+     echo "information from your destination organization, with a scope of all 'repo' and 'admin:org' permission"
      echo "followed by [ENTER]:"
      echo "(note: your input will NOT be displayed)"
      ########################
