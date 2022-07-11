@@ -475,14 +475,15 @@ ProceedMigration() {
       read -a result_array <<< "$line"
 
       ORG_MIGRATION="${result_array[0]}"
-      REPO_MIGRATION="${result_array[1]}"
-      PERMISSION_MIGRATION="${result_array[2]}"
+      TEAM_MIGRATION="${result_array[1]}"
+      REPO_MIGRATION="${result_array[2]}"
+      PERMISSION_MIGRATION="${result_array[3]}"
 
       curl -X PUT \
       -H "Accept: application/vnd.github.v3+json" \
       -H "Authorization: token $GH_TOKEN_DEST" \
-      $DEST_API_URL/orgs/$DEST_ORG/teams/$TEAM/repos/$DEST_ORG/$NAME_REPO \
-      -d "{\"permission\":\"$PERMISSION\"}"
+      $DEST_API_URL/orgs/$ORG_MIGRATION/teams/$TEAM_MIGRATION/repos/$ORG_MIGRATION/$REPO_MIGRATION \
+      -d "{\"permission\":\"$PERMISSION_MIGRATION\"}"
     fi;
     COUNTER=$((COUNTER + 1))
 
