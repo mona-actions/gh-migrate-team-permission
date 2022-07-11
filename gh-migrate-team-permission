@@ -622,10 +622,11 @@ GetTeamRepoPermissions() {
   
   while read TEAM;
     do
+      echo "TEAM: $TEAM"
       PERMISSIONS4REPO=$(curl -s -X GET \
       -H "Accept: application/vnd.github.v3+json" \
       -H "Authorization: bearer $GH_TOKEN_SOURCE" \
-      $SOURCE_API_URL/orgs/$SOURCE_ORG/teams/$TEAM/repos | jq -r '.' 2>&1)
+      $SOURCE_API_URL/orgs/$SOURCE_ORG/teams/"$TEAM"/repos | jq -r '.' 2>&1)
 
       NUM_REPOS=$(echo ${PERMISSIONS4REPO} | jq '. | length')
 
@@ -634,10 +635,19 @@ GetTeamRepoPermissions() {
 
       NUM_TEAMS=$((NUM_TEAMS + 1))
 
+      echo "Here"
+
       for (( j=0; j < $NUM_REPOS; j++));
         do
+
+          echo "One"
+          echo "Permission: $PERMISSIONS4REPO"
           NAME_REPO=$(echo $PERMISSIONS4REPO | jq ".[$j] | .name")
+
+          echo "Two"
+          echo "NAME REPO: $NAME_REPO"
           NAME_REPO=$(echo "$NAME_REPO" | tr -d '"')
+          
           
           TEMP=$(echo $PERMISSIONS4REPO | jq ".[$j] | .permissions")
           PERMISSION=$(calculate_permission "$TEMP")
