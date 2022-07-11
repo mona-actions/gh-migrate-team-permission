@@ -615,44 +615,34 @@ GetTeamRepoPermissions() {
   TEAMS=$(curl -s -X GET \
   -H "Accept: application/vnd.github.v3+json" \
   -H "authorization: bearer $GH_TOKEN_SOURCE" \
-  $SOURCE_API_URL/orgs/$SOURCE_ORG/teams | jq -r '.[].name' 2>&1)
+  $SOURCE_API_URL/orgs/$SOURCE_ORG/teams | jq -r '.[].slug' 2>&1)
 
   TOTAL_SIZE_REPO_PERMISSIONS=0
   NUM_TEAMS=0
   
   while read TEAM;
     do
-      echo "TEAM: $TEAM"
       PERMISSIONS4REPO=$(curl -s -X GET \
       -H "Accept: application/vnd.github.v3+json" \
       -H "Authorization: bearer $GH_TOKEN_SOURCE" \
-      $SOURCE_API_URL/orgs/$SOURCE_ORG/teams/"$TEAM"/repos | jq -r '.' 2>&1)
+      "$SOURCE_API_URL"/orgs/"$SOURCE_ORG"/teams/"$TEAM"/repos | jq -r '.' 2>&1)
 
-      NUM_REPOS=$(echo ${PERMISSIONS4REPO} | jq '. | length')
+      NUM_REPOS=$(echo "${PERMISSIONS4REPO}" | jq '. | length')
 
       echo "Number of repos in Team \"$TEAM\" : $NUM_REPOS"
       TOTAL_SIZE_REPO_PERMISSIONS=$((TOTAL_SIZE_REPO_PERMISSIONS+NUM_REPOS))
 
       NUM_TEAMS=$((NUM_TEAMS + 1))
 
-      echo "Here"
-
-      for (( j=0; j < $NUM_REPOS; j++));
+      for (( j=0; j < "$NUM_REPOS"; j++));
         do
-
-          echo "One"
-          echo "Permission: $PERMISSIONS4REPO"
           NAME_REPO=$(echo $PERMISSIONS4REPO | jq ".[$j] | .name")
-
-          echo "Two"
-          echo "NAME REPO: $NAME_REPO"
           NAME_REPO=$(echo "$NAME_REPO" | tr -d '"')
-          
           
           TEMP=$(echo $PERMISSIONS4REPO | jq ".[$j] | .permissions")
           PERMISSION=$(calculate_permission "$TEMP")
 
-          echo "${DEST_ORG},${TEAM},${NAME_REPO},${PERMISSION}" >> $OUTPUT_FILE_NAME
+          echo "${DEST_ORG},${TEAM},${NAME_REPO},${PERMISSION}" >> "$OUTPUT_FILE_NAME"
 
       done
   done <<< $TEAMS
