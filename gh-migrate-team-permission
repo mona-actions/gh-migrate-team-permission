@@ -87,27 +87,40 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+
+function calculateTotalPagination() {
+    local NUM_PAGES=$(expr $2 / $1)
+    if [ $(expr $2 % $1) -gt 0 ];
+    then
+        NUM_PAGES=$((NUM_PAGES+1))
+    fi
+    echo "$NUM_PAGES"
+}
+
+function checkTerminationConditionTeamLoop() {
+    local CONTINUE_EXECUTION=$REQUIRED_PAGES_TEAMS
+    echo "$CONTINUE_EXECUTION"
+}
+
+function checkTerminationConditionRepoLoop() {
+    local CONTINUE_EXECUTION=$REQUIRED_PAGES_REPOS
+    echo "$CONTINUE_EXECUTION"
+}
+
 ################################################################################
 #### Function calculate_permission ##################################################
 function calculate_permission() {
- 
   local permission_team="pull"
 
-  IS_ADMIN=$(echo $1 | jq '. | .admin')
-  IS_MAINTAIN=$(echo $1 | jq '. | .maintain')
-  IS_WRITE=$(echo $1 | jq '. | .push')
-  IS_TRIAGE=$(echo $1 | jq '. | .triage')
-  IS_READ=$(echo $1 | jq '. | .pull')
-
-  if $IS_ADMIN; then
+  if [ "$1" == "ADMIN" ]; then
     permission_team="admin"
-  elif $IS_MAINTAIN; then
+  elif [ "$1" == "MAINTAIN" ]; then
     permission_team="maintain"
-  elif $IS_WRITE; then
+  elif [ "$1" ==  "WRITE" ]; then
     permission_team="push"
-  elif $IS_TRIAGE; then
+  elif [ "$1" == "TRIAGE" ]; then
     permission_team="triage"
-  elif $IS_READ; then
+  elif [ "$1" == "READ" ]; then
     permission_team="pull"
   else
    permission_team="pull"
@@ -192,13 +205,16 @@ GetGHEURLSource() {
 
   if [[ "${SOURCE_URL}" == "https://github.com" ]]; then
     SOURCE_API_URL="https://api.github.com"
+    SOURCE_GRAPHQL_API_URL="$SOURCE_API_URL/graphql"
   else
     SOURCE_API_URL="${SOURCE_URL}/api/v3"
+    SOURCE_GRAPHQL_API_URL="$SOURCE_API_URL/graphql"
   fi
 
     echo ""
     echo "SOURCE  URL: $SOURCE_URL"
     echo "SOURCE API URL: $SOURCE_API_URL"
+    echo "SOURCE GraphQL API URL: $SOURCE_GRAPHQL_API_URL"
 }
 
 ###############################################################################
@@ -482,10 +498,12 @@ ProceedMigration() {
       REPO_MIGRATION="${result_array[2]}"
       PERMISSION_MIGRATION="${result_array[3]}"
 
+      echo "ORG MIGRATION: $ORG_MIGRATION TEAM MIGRATION: $TEAM_MIGRATION REPO MIGRATION: $REPO_MIGRATION PERMISSION MIGRATION: $PERMISSION_MIGRATION"
+      
       curl -X PUT \
       -H "Accept: application/vnd.github.v3+json" \
       -H "Authorization: token $GH_TOKEN_DEST" \
-      $DEST_API_URL/orgs/$ORG_MIGRATION/teams/$TEAM_MIGRATION/repos/$ORG_MIGRATION/$REPO_MIGRATION \
+      "$DEST_API_URL"/orgs/"$ORG_MIGRATION"/teams/"$TEAM_MIGRATION"/repos/"$ORG_MIGRATION"/"$REPO_MIGRATION" \
       -d "{\"permission\":\"$PERMISSION_MIGRATION\"}"
     fi;
     COUNTER=$((COUNTER + 1))
@@ -525,19 +543,36 @@ CheckAPILimitSource() {
   | jq -r '.message' 2>&1)
 
   if [[ "${API_REMAINING_MESSAGE_SOURCE}" != "Rate limiting is not enabled." ]]; then
-    API_REMAINING_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
-    | jq -r '.resources.core.remaining' 2>&1)
-
-    API_TOTAL_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
+    # CORE API RATE LIMITs:
+    API_CORE_LIMIT_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
     | jq -r '.resources.core.limit' 2>&1)
     
-    API_USED_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
+    API_CORE_USED_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
     | jq -r '.resources.core.used' 2>&1)
 
+    API_CORE_REMAINING_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
+    | jq -r '.resources.core.remaining' 2>&1)
+
+    # GraphQL API RATE LIMITs:
+    API_GRAPHQL_LIMIT_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
+    | jq -r '.resources.graphql.limit' 2>&1)
+
+    API_GRAPHQL_USED_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
+    | jq -r '.resources.graphql.used' 2>&1)
+
+    API_GRAPHQL_REMAINING_SOURCE=$(echo "${API_RATE_LIMIT_SOURCE}" \
+    | jq -r '.resources.graphql.remaining' 2>&1)
+
     echo ""
-    echo "Your total API  Rate limit for source PAT is: ${API_TOTAL_SOURCE}"
-    echo "Your used API  Rate limit for source PAT is: ${API_USED_SOURCE}"
-    echo "Your remaining API  Rate limit for source PAT is: ${API_REMAINING_SOURCE}"
+    echo "=========================== SOURCE API RATE Limits ========================================"
+    echo "NOTE: Source migration mostly uses GraphQL API rate limits rather than core API rate limits"
+    echo "Your total core API  Rate limit for source PAT is: ${API_CORE_LIMIT_SOURCE}"
+    echo "Your used core API  Rate limit for source PAT is: ${API_CORE_USED_SOURCE}"
+    echo "Your remaining core API  Rate limit for source PAT is: ${API_CORE_REMAINING_SOURCE}"
+    echo ""
+    echo "Your total GraphQL API  Rate limit for source PAT is: ${API_GRAPHQL_LIMIT_SOURCE}"
+    echo "Your used GraphQL API  Rate limit for source PAT is: ${API_GRAPHQL_USED_SOURCE}"
+    echo "Your remaining GraphQL API  Rate limit for source PAT is: ${API_GRAPHQL_REMAINING_SOURCE}"
   else
     API_REMAINING_SOURCE=9999999999
   fi
@@ -582,6 +617,7 @@ CheckAPILimitDestination() {
     | jq -r '.resources.core.used' 2>&1)
 
     echo ""
+    echo "=========================== Destination API RATE Limits ======================================"
     echo "Your total API  Rate limit for destination PAT is: ${API_TOTAL_DEST}"
     echo "Your used API  Rate limit for destination PAT is: ${API_USED_DEST}"
     echo "Your remaining API  Rate limit for destination PAT is: ${API_REMAINING_DEST}"
@@ -612,46 +648,155 @@ GetTeamRepoPermissions() {
   echo "Getting the repo permissions from source organization"
   echo "######################################################"
 
-  TEAMS=$(curl -s -X GET \
-  -H "Accept: application/vnd.github.v3+json" \
-  -H "authorization: bearer $GH_TOKEN_SOURCE" \
-  $SOURCE_API_URL/orgs/$SOURCE_ORG/teams | jq -r '.[].slug' 2>&1)
+  # Calculates required pages for Team. It will execute at least once:
+  REQUIRED_PAGES_TEAMS=1
 
-  TOTAL_SIZE_REPO_PERMISSIONS=0
-  NUM_TEAMS=0
+  # Get the last cursor from Team, so it can start after that cursor:
+  LAST_CURSOR_TEAM=null
+  LAST_CURSOR_REPO=null
+
+  # Set counter for pages:
+  COUNTER_PAGINATION_TEAMS=0
+
+   # START of checkTerminationConditionTeamLoop loop
+  while [ "$(checkTerminationConditionTeamLoop)" -gt 0 ]; do
   
-  while read TEAM;
-    do
-      PERMISSIONS4REPO=$(curl -s -X GET \
-      -H "Accept: application/vnd.github.v3+json" \
-      -H "Authorization: bearer $GH_TOKEN_SOURCE" \
-      "$SOURCE_API_URL"/orgs/"$SOURCE_ORG"/teams/"$TEAM"/repos | jq -r '.' 2>&1)
+    # DEBUG MODE
+    if [ "$DEBUG" -eq 1 ]; then
+      echo "SOURCE GRAPHQL API URL: $SOURCE_GRAPHQL_API_URL TEAM PAGINATION: $TAEM_PAGINATION LAST CURSOR TEAM: $LAST_CURSOR_TEAM REPO PAGINATION: $REPO_PAGINATION LAST CURSOR REPO: $LAST_CURSOR_REPO"
+    fi
 
-      NUM_REPOS=$(echo "${PERMISSIONS4REPO}" | jq '. | length')
+    RESPONSE_TEAMS=$(curl --request POST \
+    --url "$SOURCE_GRAPHQL_API_URL" \
+    --header "authorization: bearer $GH_TOKEN_SOURCE" \
+    --header "content-type: application/json" \
+    --data '{"query":"query(\n  $login: String!\n){\n  organization (login: $login)\n  {\n    login\n    id\n    name\n teams (first: '"$TEAM_PAGINATION"', after: '$LAST_CURSOR_TEAM')\n {\n totalCount \n nodes\n{\n slug \n repositories(first: '"$REPO_PAGINATION"', after: '$LAST_CURSOR_REPO')\n {\n totalCount \n nodes{\n name \n }\n edges{\n permission \n cursor\n } \n} \n}\n edges{\n cursor \n} \n} }\n}","variables":{"login":"'"$SOURCE_ORG"'"}}' | jq -r '.data.organization.teams' 2>&1)
 
-      echo "Number of repos in Team \"$TEAM\" : $NUM_REPOS"
-      TOTAL_SIZE_REPO_PERMISSIONS=$((TOTAL_SIZE_REPO_PERMISSIONS+NUM_REPOS))
+    # Print the rate limit after a Team GraphQL call:
+    echo ""
+    echo "#####################################################################"
+    echo "Checking source rate limit after a GraphQL execution to get all Teams"
+    echo "#####################################################################"
+    CheckAPILimitSource
 
-      NUM_TEAMS=$((NUM_TEAMS + 1))
+    # echo "SOURCE API URL: $SOURCE_API_URL TEAM PAGINATION: $TEAM_PAGINATION LAST CURSOR TEAM: $LAST_CURSOR_TEAM REPO PAGINATION: $REPO_PAGINATION LAST CURSOR REPO: $LAST_CURSOR_REPO ORGANIZATION: $SOURCE_ORG"
 
-      for (( j=0; j < "$NUM_REPOS"; j++));
-        do
-          NAME_REPO=$(echo $PERMISSIONS4REPO | jq ".[$j] | .name")
-          NAME_REPO=$(echo "$NAME_REPO" | tr -d '"')
-          
-          TEMP=$(echo $PERMISSIONS4REPO | jq ".[$j] | .permissions")
-          PERMISSION=$(calculate_permission "$TEMP")
+    # Total number of Teams that need to be paginated:
+    TOTAL_TEAMS_COUNTS=$(echo $RESPONSE_TEAMS | jq -r '.totalCount')
 
-          echo "${DEST_ORG},${TEAM},${NAME_REPO},${PERMISSION}" >> "$OUTPUT_FILE_NAME"
+    # Only need to calcualte required pagination at the beginning
+    if [ "$COUNTER_PAGINATION_TEAMS" -eq 0 ]; then
+        # DEBUG MODE
+        if [ "$DEBUG" -eq 1 ]; then
+          echo "TEAM PAGINATION: $TEAM_PAGINATION TOTAL TEAM COUNTS: $TOTAL_TEAMS_COUNTS"
+        fi
+        
+        REQUIRED_PAGES_TEAMS=$(calculateTotalPagination "$TEAM_PAGINATION" "$TOTAL_TEAMS_COUNTS")
+    fi
 
-      done
-  done <<< $TEAMS
+    # Decrement required pages for team:
+    REQUIRED_PAGES_TEAMS=$((REQUIRED_PAGES_TEAMS-1))
 
-  echo ""
-  echo "Total number of Teams: $NUM_TEAMS"
-  echo "Total number of repository permissions to migrate: $TOTAL_SIZE_REPO_PERMISSIONS"
+    # For each team page, we need to loop through:
+    COUNTER_TEAM=0
 
+    # Total number of teams per page:
+    TOTAL_TEAMS_PER_PAGE=$(echo $RESPONSE_TEAMS | jq -r '.nodes' | jq length)
+
+    # START of looping through Teams:
+    while [ "$COUNTER_TEAM" -lt "$TOTAL_TEAMS_PER_PAGE" ]; do
+   
+         # Calculates required pages for repo. It will execute at least once:
+        REQUIRED_PAGES_REPOS=1
+        # Get the last cursor from repo, so it can start after that cursor:
+        LAST_CURSOR_REPO=null
+
+        # For each repo page, we need to iterate through repos:
+        COUNTER_PAGINATION_REPOS=0
+
+        # START of checkTerminationConditionRepoLoop
+        while [ "$(checkTerminationConditionRepoLoop)" -gt 0 ]; do
+            RESPONSE_TEAMS=$(curl --request POST \
+            --url "$SOURCE_GRAPHQL_API_URL" \
+            --header "authorization: bearer $GH_TOKEN_SOURCE" \
+            --header "content-type: application/json" \
+            --data '{"query":"query(\n  $login: String!\n){\n  organization (login: $login)\n  {\n    login\n    id\n    name\n teams (first: '"$TEAM_PAGINATION"', after: '$LAST_CURSOR_TEAM')\n {\n totalCount \n nodes\n{\n slug \n repositories(first: '"$REPO_PAGINATION"', after: '$LAST_CURSOR_REPO')\n {\n totalCount \n nodes{\n name \n }\n edges{\n permission \n cursor\n } \n} \n}\n edges{\n cursor \n} \n} }\n}","variables":{"login":"'"$SOURCE_ORG"'"}}' | jq -r '.data.organization.teams' 2>&1)
+
+            # Print the rate limit after a repo GraphQL call:
+            echo ""
+            echo "#####################################################################"
+            echo "Checking source rate limit after a GraphQL execution to get all repos"
+            echo "#####################################################################"
+            CheckAPILimitSource
+
+            # List of stuffs in a selected Team:
+            LIST_TEAM_OBJECTS=$(echo $RESPONSE_TEAMS | jq -r ".nodes[$COUNTER_TEAM]")
+            # Get the current Team name:
+            CURRENT_TEAM_NAME=$(echo $LIST_TEAM_OBJECTS | jq -r '.slug')
+            # Get the list of repositories in a Team:
+            LIST_REPOS4TEAM=$(echo $LIST_TEAM_OBJECTS | jq -r '.repositories')
+            # Total number of repos that require pagination:
+            TOTAL_REPOS_COUNTS=$(echo $LIST_REPOS4TEAM | jq -r '.totalCount')
+            
+            # Only need to calcualte required pagination at the beginning
+            if [ "$COUNTER_PAGINATION_REPOS" -eq 0 ]; then
+              # DEBUG MODE
+              if [ "$DEBUG" -eq 1 ]; then
+                  echo "REPO PAGINATION: $REPO_PAGINATION TOTAL REPOS COUNTS: $TOTAL_REPOS_COUNTS"
+              fi
+              REQUIRED_PAGES_REPOS=$(calculateTotalPagination "$REPO_PAGINATION" "$TOTAL_REPOS_COUNTS")
+            fi
+
+            # Decrement required pages for repo:
+            REQUIRED_PAGES_REPOS=$((REQUIRED_PAGES_REPOS-1))
+               
+            # Need to get total number of repos to loop through for this page:
+            REPO_COUNTS_PER_PAGE=$(echo $LIST_REPOS4TEAM | jq -r '.nodes' | jq length)
+
+            # For each repo page, we need to loop through:
+            COUNTER_REPO=0
+
+            # START of looping through repos:
+            while [ "$COUNTER_REPO" -lt "$REPO_COUNTS_PER_PAGE" ]; do
+              # GET the current repo name:
+              CURRENT_REPO_NAME=$(echo $LIST_REPOS4TEAM | jq -r ".nodes[$COUNTER_REPO].name")
+              # GET the current repo permission:
+              CURRENT_REPO_PERMISSION=$(echo $LIST_REPOS4TEAM | jq -r ".edges[$COUNTER_REPO].permission")
+
+              if [ "$DEBUG" -eq 1 ]; then
+                echo "DEST ORG: $DEST_ORG Current Team Name: $CURRENT_TEAM_NAME CURRENT REPO NAME: $CURRENT_REPO_NAME CURRENT_REPO_PERMISSION: $CURRENT_REPO_PERMISSION"
+              fi
+              # WRITE to output file
+              echo "${DEST_ORG},${CURRENT_TEAM_NAME},${CURRENT_REPO_NAME},$(calculate_permission "$CURRENT_REPO_PERMISSION")" >> "$OUTPUT_FILE_NAME"
+
+              # Increment counter for repo
+              COUNTER_REPO=$((COUNTER_REPO+1))
+            done
+            # END of looping through repos:
+
+            # Change null pointer only after first run:
+            if [ "$REQUIRED_PAGES_REPOS" -gt 0 ]; then
+                LAST_CURSOR_REPO=$(echo  $LIST_REPOS4TEAM | jq -r ".edges[$REPO_COUNTS_PER_PAGE-1].cursor")
+                LAST_CURSOR_REPO='\"'$LAST_CURSOR_REPO'\"'
+            fi
+
+            COUNTER_PAGINATION_REPOS=$((COUNTER_PAGINATION_REPOS+1))
+        done
+        # END of checkTerminationConditionRepoLoop
+        
+        COUNTER_TEAM=$((COUNTER_TEAM+1))
+    done
+    # END of looping through Teams
+
+    LENGTH_NODE_TEAMS=$(echo $RESPONSE_TEAMS | jq -r '.nodes' | jq length)
+    LAST_CURSOR_TEAM=$(echo  $RESPONSE_TEAMS | jq -r ".edges[$LENGTH_NODE_TEAMS-1].cursor")
+    LAST_CURSOR_TEAM='\"'$LAST_CURSOR_TEAM'\"'
+
+    COUNTER_PAGINATION_TEAMS=$((COUNTER_PAGINATION_TEAMS+1))
+  done 
+  # END of checkTerminationConditionTeamLoop loop
 }
+
 
 ################################################################################
 #### Function GenerateFiles ####################################################
@@ -787,17 +932,24 @@ Footer() {
 ###########
 # Defaults #
 ############
+TEAM_PAGINATION=10
+REPO_PAGINATION=100
+
 GH_TOKEN_SOURCE=${GH_TOKEN_SOURCE:-}
 GH_TOKEN_DEST=${GH_TOKEN_DEST:-}
 SOURCE_URL=${SOURCE_URL:-}
 DEST_URL=${DEST_URL:-}
 SOURCE_API_URL=${SOURCE_API_URL:-}
+SOURCE_GRAPHQL_API_URL=${SOURCE_GRAPHQL_API_URL:-}
 DEST_API_URL=${DEST_API_URL:-}
 SOURCE_ORG=${SOURCE_ORG:-}
 DEST_ORG=${DEST_ORG:-}
 ANALYZE_CONFLICTS=1
 OUTPUT_FILE_NAME=
 SLEEP='3600'
+
+# SET DEBUG FLAG. BY DEFAULT, it is on:
+DEBUG=1
 
 ##########
 # HEADER #
@@ -811,7 +963,6 @@ Header
 if [[ "${CONFIRM_CREATING_MIGRATION_FILE}" == 'y' ]]; then
   GenerateFiles
   GetTeamRepoPermissions
-  RecommendMigration
 fi;
 
 ProceedMigration
