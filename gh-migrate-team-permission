@@ -153,6 +153,76 @@ AskForPhase() {
 }
 
 ####################################################################
+### Funtion AskForPagination ############################################
+AskForPagination() {
+  echo ""
+  echo "#########################################################################"
+  echo "Check with user to decide whether they want to change default pagination"
+  echo "#########################################################################"
+
+  CONFIRM_CHANGE_PAGINATION="y"
+
+  echo ""
+  echo "------------------------------------"
+  echo "If you have a lot of Teams and/or repositories, pagination is required since it can fetch maximum of 100 per time."
+  echo "Currently, Team pagination is set at [$TEAM_PAGINATION] and Repo pagination is set at [$REPO_PAGINATION]"
+  echo "Type [y] if you want to change those values or [n] if you want to leave as those default values."
+  echo "Followed with the [Enter] key."
+
+  ########################
+  # Read input from user #
+  #######################
+  read -r CONFIRM_CHANGE_PAGINATION
+
+  if [[ "${CONFIRM_CHANGE_PAGINATION}" == 'y' ]]; then
+    echo ""
+    echo "You choose to change default pagination values."
+
+    CONFIRM_HAPPY_WITH_PAGINATION="n"
+
+    while [ "${CONFIRM_HAPPY_WITH_PAGINATION}" != "y" ]; do
+      echo "Please type in value for your Team pagination. It has to be between 1 to 100"
+      echo "Followed with the [Enter] key."
+      read -r TEAM_PAGINATION
+
+      while [ "$TEAM_PAGINATION" -gt 100 ] || [ "$TEAM_PAGINATION" -lt 1 ]; do
+        echo ""
+        echo "Your Team pagination value has to be between 1 to 100! Please try it again."
+        echo "Please type in value for your Team pagination. It has to be between 1 to 100"
+        echo "Followed with the [Enter] key."
+        read -r TEAM_PAGINATION
+      done
+
+      echo "Now, type in value for your Repo pagination. It has to be between 1 to 100"
+      echo "Followed with the [Enter] key."
+      read -r REPO_PAGINATION
+
+      while [ "$REPO_PAGINATION" -gt 100 ] || [ "$REPO_PAGINATION" -lt 1 ]; do
+        echo ""
+        echo "Your Repo pagination value has to be between 1 to 100! Please try it again."
+        echo "Please type in value for your Team pagination. It has to be between 1 to 100"
+        echo "Followed with the [Enter] key."
+        read -r REPO_PAGINATION
+      done
+
+      echo "Team Pagination:[${TEAM_PAGINATION}] Repo Pagination [${REPO_PAGINATION}]"
+      echo "Are your pagination values correct?"
+      echo "Type [y] for yes and [n] for no."
+      echo "Followed with the [Enter] key."
+
+      read -r CONFIRM_HAPPY_WITH_PAGINATION
+    done
+
+    echo "Awesome. We will proceed with those pagination values."
+  else
+    echo ""
+    echo "Thank you. We will proceed with default pagination values."
+  fi
+
+}
+
+
+####################################################################
 ### Funtion GetGHEURLSource ##############################################
 GetGHEURLSource() {
   echo ""
@@ -889,6 +959,9 @@ Header() {
   GraphicArt
   AskForPhase
   if [[ "${CONFIRM_CREATING_MIGRATION_FILE}" == 'y' ]]; then
+  AskForPagination
+  fi;
+  if [[ "${CONFIRM_CREATING_MIGRATION_FILE}" == 'y' ]]; then
     GetGHEURLSource
   fi;
   GetGHEURLDestination
@@ -932,7 +1005,7 @@ Footer() {
 ###########
 # Defaults #
 ############
-TEAM_PAGINATION=10
+TEAM_PAGINATION=100
 REPO_PAGINATION=100
 
 GH_TOKEN_SOURCE=${GH_TOKEN_SOURCE:-}
