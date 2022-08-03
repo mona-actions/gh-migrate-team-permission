@@ -559,9 +559,9 @@ ProceedMigration() {
   while read -r line;
     do
 
-    if [[ "$API_REMAINING_DEST" -eq 0 ]]; then
-      Go2Sleep
-    fi;
+    echo ""
+    echo "Checking destination API limit before an API call"
+    CheckAPILimitDestination
 
     if [ "$COUNTER" -gt 0 ]; then
       read -a result_array <<< "$line"
@@ -578,10 +578,12 @@ ProceedMigration() {
       -H "Authorization: token $GH_TOKEN_DEST" \
       "$DEST_API_URL"/orgs/"$ORG_MIGRATION"/teams/"$TEAM_MIGRATION"/repos/"$ORG_MIGRATION"/"$REPO_MIGRATION" \
       -d "{\"permission\":\"$PERMISSION_MIGRATION\"}"
+
+      echo ""
+      echo "Checking destination API limit after an API call"
+      CheckAPILimitDestination
     fi;
     COUNTER=$((COUNTER + 1))
-
-    API_REMAINING_DEST=$((API_REMAINING_DEST - 1))
 
    done < "${INPUT_FILE_NAME}"
 }
@@ -592,13 +594,16 @@ Go2Sleep() {
   echo "WARN! We have run out of API calls and need to sleep!"
   echo "Sleeping for ${SLEEP} seconds before next check"
 
-  sleep "${SLEEP}"
+  COUNTER_SLEEP=0
+  sp="/-\|"
 
-  if [[ "${CONFIRM_CREATING_MIGRATION_FILE}" == 'y' ]]; then
-    CheckAPILimitSource
-  fi;
-  CheckAPILimitDestination
+  while [ "$COUNTER_SLEEP" -lt "$SLEEP" ]; do
+    printf "\b${sp:i++%${#sp}:1}"
+    sleep 1
+    COUNTER_SLEEP=$((COUNTER_SLEEP+1))
+  done
 
+  echo "Awesome. We are done waiting for ${SLEEP} seconds."
 }
 
 #####################################################################
@@ -646,6 +651,15 @@ CheckAPILimitSource() {
     echo "Your total GraphQL API  Rate limit for source PAT is: ${API_GRAPHQL_LIMIT_SOURCE}"
     echo "Your used GraphQL API  Rate limit for source PAT is: ${API_GRAPHQL_USED_SOURCE}"
     echo "Your remaining GraphQL API  Rate limit for source PAT is: ${API_GRAPHQL_REMAINING_SOURCE}"
+
+    echo ""
+    echo "Now, we will check whether your source rate limit is about to run out and needs to refresh."
+    echo "Currently, we will go to sleep for $SLEEP seconds if your one of your remaining rate limits (GraphQL or core) is less than $MIN_RATELIMIT_GO2SLEEP"
+    echo "You can change the minimum required check by changing [MIN_RATELIMIT_GO2SLEEP] value"
+    echo ""
+    if [ "$API_CORE_REMAINING_SOURCE" -lt "$MIN_RATELIMIT_GO2SLEEP" ] || [ "$API_GRAPHQL_REMAINING_SOURCE" -lt "$MIN_RATELIMIT_GO2SLEEP" ]; then
+      Go2Sleep
+    fi
   else
     API_REMAINING_SOURCE=9999999999
   fi
@@ -694,6 +708,15 @@ CheckAPILimitDestination() {
     echo "Your total API  Rate limit for destination PAT is: ${API_TOTAL_DEST}"
     echo "Your used API  Rate limit for destination PAT is: ${API_USED_DEST}"
     echo "Your remaining API  Rate limit for destination PAT is: ${API_REMAINING_DEST}"
+
+    echo ""
+    echo "Now, we will check whether your destination rate limit is about to run out and needs to refresh."
+    echo "Currently, we will go to sleep for $SLEEP seconds if your one of your remaining rate limits (core) is less than $MIN_RATELIMIT_GO2SLEEP"
+    echo "You can change the minimum required check by changing [MIN_RATELIMIT_GO2SLEEP] value"
+    echo ""
+    if [ "$API_REMAINING_DEST" -lt "$MIN_RATELIMIT_GO2SLEEP" ]; then
+      Go2Sleep
+    fi
   else
     API_REMAINING_DEST=9999999999
   fi
@@ -733,7 +756,10 @@ GetTeamRepoPermissions() {
 
    # START of checkTerminationConditionTeamLoop loop
   while [ "$(checkTerminationConditionTeamLoop)" -gt 0 ]; do
-  
+    echo ""
+    echo "Checking source API limit before an API call"
+    CheckAPILimitSource
+
     # DEBUG MODE
     if [ "$DEBUG" -eq 1 ]; then
       echo "SOURCE GRAPHQL API URL: $SOURCE_GRAPHQL_API_URL TEAM PAGINATION: $TEAM_PAGINATION LAST CURSOR TEAM: $LAST_CURSOR_TEAM REPO PAGINATION: $REPO_PAGINATION LAST CURSOR REPO: $LAST_CURSOR_REPO" >> "$LOG_FILE_NAME"
@@ -1080,6 +1106,7 @@ DEST_ORG=${DEST_ORG:-}
 ANALYZE_CONFLICTS=1
 OUTPUT_FILE_NAME=
 SLEEP='3600'
+MIN_RATELIMIT_GO2SLEEP=10
 
 # SET DEBUG FLAG. BY DEFAULT, it is on:
 DEBUG=1
