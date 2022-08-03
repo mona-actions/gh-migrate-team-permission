@@ -221,7 +221,6 @@ AskForPagination() {
 
 }
 
-
 ####################################################################
 ### Funtion GetGHEURLSource ##############################################
 GetGHEURLSource() {
@@ -380,6 +379,7 @@ GetPersonalAccessTokenSource() {
      ##########################################
      if [ ${#GH_TOKEN_SOURCE} -ne 40 ]; then
        echo "GitHub PAT are 40 characters in length! Your source PAT has ${#GH_TOKEN_SOURCE} characters!"
+       echo "GitHub PAT are 40 characters in length! Your source PAT has ${#GH_TOKEN_SOURCE} characters!" >> "$LOG_FILE_NAME"
        exit 1
      fi
 
@@ -412,6 +412,7 @@ GetPersonalAccessTokenDestination() {
      ##########################################
      if [ ${#GH_TOKEN_DEST} -ne 40 ]; then
        echo "GitHub PAT are 40 characters in length! Your destination PAT has ${#GH_TOKEN_DEST} characters!"
+       echo "GitHub PAT are 40 characters in length! Your destination PAT has ${#GH_TOKEN_DEST} characters!" >> "$LOG_FILE_NAME"
        exit 1
      fi
 }
@@ -444,7 +445,8 @@ GetOrganizations() {
     # Validate the Org Name #
     #########################
     if [ ${#SOURCE_ORG} -le 1 ]; then
-      echo "Error! You must give a valid Organization name!"
+      echo "Error! You must give a valid source Organization name!"
+      echo "Error! You must give a valid source Organization name!">> "$LOG_FILE_NAME"
       exit 1
     fi
   fi
@@ -473,7 +475,8 @@ GetOrganizations() {
     # Validate the Org Name #
     #########################
     if [ ${#DEST_ORG} -le 1 ]; then
-      echo "Error! You must give a valid Organization name!"
+      echo "Error! You must give a valid destination Organization name!"
+      echo "Error! You must give a valid destination Organization name!">> "$LOG_FILE_NAME"
       exit 1
     fi
   fi
@@ -733,7 +736,7 @@ GetTeamRepoPermissions() {
   
     # DEBUG MODE
     if [ "$DEBUG" -eq 1 ]; then
-      echo "SOURCE GRAPHQL API URL: $SOURCE_GRAPHQL_API_URL TEAM PAGINATION: $TAEM_PAGINATION LAST CURSOR TEAM: $LAST_CURSOR_TEAM REPO PAGINATION: $REPO_PAGINATION LAST CURSOR REPO: $LAST_CURSOR_REPO"
+      echo "SOURCE GRAPHQL API URL: $SOURCE_GRAPHQL_API_URL TEAM PAGINATION: $TEAM_PAGINATION LAST CURSOR TEAM: $LAST_CURSOR_TEAM REPO PAGINATION: $REPO_PAGINATION LAST CURSOR REPO: $LAST_CURSOR_REPO" >> "$LOG_FILE_NAME"
     fi
 
     RESPONSE_TEAMS=$(curl --request POST \
@@ -759,6 +762,7 @@ GetTeamRepoPermissions() {
         # DEBUG MODE
         if [ "$DEBUG" -eq 1 ]; then
           echo "TEAM PAGINATION: $TEAM_PAGINATION TOTAL TEAM COUNTS: $TOTAL_TEAMS_COUNTS"
+          echo "TEAM PAGINATION: $TEAM_PAGINATION TOTAL TEAM COUNTS: $TOTAL_TEAMS_COUNTS" >> "$LOG_FILE_NAME"
         fi
         
         REQUIRED_PAGES_TEAMS=$(calculateTotalPagination "$TEAM_PAGINATION" "$TOTAL_TEAMS_COUNTS")
@@ -812,7 +816,7 @@ GetTeamRepoPermissions() {
             if [ "$COUNTER_PAGINATION_REPOS" -eq 0 ]; then
               # DEBUG MODE
               if [ "$DEBUG" -eq 1 ]; then
-                  echo "REPO PAGINATION: $REPO_PAGINATION TOTAL REPOS COUNTS: $TOTAL_REPOS_COUNTS"
+                  echo "REPO PAGINATION: $REPO_PAGINATION TOTAL REPOS COUNTS: $TOTAL_REPOS_COUNTS" >> "$LOG_FILE_NAME"
               fi
               REQUIRED_PAGES_REPOS=$(calculateTotalPagination "$REPO_PAGINATION" "$TOTAL_REPOS_COUNTS")
             fi
@@ -834,7 +838,7 @@ GetTeamRepoPermissions() {
               CURRENT_REPO_PERMISSION=$(echo $LIST_REPOS4TEAM | jq -r ".edges[$COUNTER_REPO].permission")
 
               if [ "$DEBUG" -eq 1 ]; then
-                echo "DEST ORG: $DEST_ORG Current Team Name: $CURRENT_TEAM_NAME CURRENT REPO NAME: $CURRENT_REPO_NAME CURRENT_REPO_PERMISSION: $CURRENT_REPO_PERMISSION"
+                echo "DEST ORG: $DEST_ORG Current Team Name: $CURRENT_TEAM_NAME CURRENT REPO NAME: $CURRENT_REPO_NAME CURRENT_REPO_PERMISSION: $CURRENT_REPO_PERMISSION" >> "$LOG_FILE_NAME"
               fi
               # WRITE to output file
               echo "${DEST_ORG},${CURRENT_TEAM_NAME},${CURRENT_REPO_NAME},$(calculate_permission "$CURRENT_REPO_PERMISSION")" >> "$OUTPUT_FILE_NAME"
@@ -918,6 +922,59 @@ GenerateFiles() {
 
 }
 
+################################################################################
+#### Function GenerateLogFile ####################################################
+GenerateLogFile() {
+  echo ""
+  echo "######################################################################################"
+  echo "This will generate a log name that is going to be used to record logging"
+  echo "######################################################################################"
+
+  ##########################
+  # Get current date stamp #
+  ##########################
+  # Get datestring YYYYMMDDHHMM
+  DATE=$(date +%Y%m%d%H%M)
+
+  ####################
+  # Create File Name #
+  ####################
+  # Example: MyOrg-all_repos-201901041059.csv
+  LOG_FILE_NAME="log-$DATE.txt"
+
+  echo ""
+  echo "Your log output file name: $LOG_FILE_NAME"
+
+  #############################
+  # Create Header in the file #
+  #############################
+  echo ""
+  echo "Creating log file header..."
+
+  # File format headers: 
+  echo "==================================================" >> "${LOG_FILE_NAME}" 2>&1
+  echo "========== Logging ===============================" >> "${LOG_FILE_NAME}" 2>&1
+  echo "===================================================" >> "${LOG_FILE_NAME}" 2>&1
+  echo "" >> "${LOG_FILE_NAME}" 2>&1
+
+  #######################
+  # Load the error code #
+  #######################
+  ERROR_CODE=$?
+
+  ##############################
+  # Check the shell for errors #
+  ##############################
+  if [ ${ERROR_CODE} -ne 0 ]; then
+    echo "ERROR! Failed to write headers to file:[${LOG_FILE_NAME}]!"
+    exit 1
+  fi
+
+  echo ""
+  echo "Done with creating a new log file named \"$LOG_FILE_NAME\""
+
+}
+
 #####################################################################
 #### Function GraphicArt ################################################
 GraphicArt() {
@@ -957,6 +1014,9 @@ EOF
 Header() {
 
   GraphicArt
+  if [ "$DEBUG" -eq 1 ]; then
+     GenerateLogFile
+  fi;
   AskForPhase
   if [[ "${CONFIRM_CREATING_MIGRATION_FILE}" == 'y' ]]; then
   AskForPagination
