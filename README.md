@@ -38,7 +38,7 @@ Or the script will prompt you to put in the relevant information.
 ## CLI options
 
 ```text
-Usage: gh repo-stats [options]
+Usage: gh-migrate-team-permission [options]
 Options:
     -h, --help                    : Show script help
     -su, --source-url             : Set source GitHub URL (e.g. https://github.example.com) Looks for SOURCE_URL environment
