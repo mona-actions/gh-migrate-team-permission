@@ -28,7 +28,7 @@ set -e
 #### Function PrintUsage #######################################################
 PrintUsage() {
     cat <<EOM
-Usage: gh repo-stats [options]
+Usage: gh migrate-team-permission [options]
 Options:
     -h, --help                    : Show script help
     -su, --source-url             : Set source GitHub URL (e.g. https://github.example.com) Looks for SOURCE_URL environment
